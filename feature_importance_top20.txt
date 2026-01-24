@@ -1,0 +1,29 @@
+Top 20 feature importances (gain):
+f171: 5.229485
+f409: 5.158387
+f241: 5.076702
+f143: 4.504388
+f169: 3.849065
+f113: 3.538789
+f381: 3.421891
+f87: 3.325201
+f717: 3.226370
+f407: 3.129108
+f755: 3.032975
+f155: 2.863435
+f871: 2.862645
+f809: 2.807288
+f315: 2.653931
+f119: 2.650925
+f147: 2.623867
+f146: 2.559067
+f827: 2.554584
+f841: 2.522136
+
+Feature layout per channel (14 features):
+0 mean, 1 std, 2 ptp, 3 rms,
+4 log_delta, 5 log_theta, 6 log_mu, 7 log_beta, 8 log_gamma,
+9 rel_delta, 10 rel_theta, 11 rel_mu, 12 rel_beta, 13 rel_gamma
+
+Channel index = feature_index // 14
+Feature-in-channel index = feature_index % 14

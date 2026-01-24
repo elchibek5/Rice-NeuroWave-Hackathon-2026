@@ -1,0 +1,6 @@
+EEG Motor Imagery Classification (Hackathon)
+Features: Covariance Log (covlog) + XGBoost
+Validation: GroupKFold by participant (prevents leakage)
+
+Best CV accuracy: ~0.4335
+Outputs: predictions.zip (20 y_pred_*.npy files)

@@ -1,0 +1,21 @@
+Confusion Matrix (rows=true, cols=pred):
+[[796 409 281 351]
+ [406 703 369 349]
+ [259 302 880 399]
+ [314 290 429 802]]
+
+Labels order:
+[np.void(('both_feet',), dtype=[('limb', 'O')]), np.void(('both_hands',), dtype=[('limb', 'O')]), np.void(('left_hand',), dtype=[('limb', 'O')]), np.void(('right_hand',), dtype=[('limb', 'O')])]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+('both_feet',)       0.45      0.43      0.44      1837
+('both_hands',)       0.41      0.38      0.40      1827
+('left_hand',)       0.45      0.48      0.46      1840
+('right_hand',)       0.42      0.44      0.43      1835
+
+    accuracy                           0.43      7339
+   macro avg       0.43      0.43      0.43      7339
+weighted avg       0.43      0.43      0.43      7339
+

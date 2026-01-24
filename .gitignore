@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.venv/
+venv/
+.env
+
+# OS junk
+.DS_Store
+
+# Data (DO NOT COMMIT)
+*.npy
+Training/
+Evaluation/
+Challenge_Dataset*/
+Baseline*/
+Training_merged/
+Training_clean/
+
+# Outputs
+predictions/
+predictions.zip
+predictions_*.zip
+model*.joblib
+cache_features/
+
+# IDE
+.idea/
+.vscode/
