@@ -18,6 +18,8 @@ EPS = 1e-10
 # ----------------------------
 # Feature helpers
 # ----------------------------
+
+# gets bandpower in a frequency range using Welch PSD
 def bandpower(sig: np.ndarray, low: float, high: float, fs: int = FS) -> float:
     """Integrate PSD over [low, high] using Welch."""
     freqs, psd = welch(sig, fs=fs, nperseg=256)
@@ -25,6 +27,7 @@ def bandpower(sig: np.ndarray, low: float, high: float, fs: int = FS) -> float:
     return float(np.trapezoid(psd[mask], freqs[mask])) if np.any(mask) else 0.0
 
 
+# makes basic per-channel stats + EEG bandpower features
 def features_bandpower(epoch: np.ndarray) -> np.ndarray:
     """
     epoch: (64, 656)
@@ -63,6 +66,7 @@ def features_bandpower(epoch: np.ndarray) -> np.ndarray:
     return np.array(feats, dtype=np.float32)
 
 
+# EEG classic baseline: log-cov features from covariance matrix (SPD)
 def features_covlog(epoch: np.ndarray, shrink: float = 0.1) -> np.ndarray:
     """
     Strong EEG baseline: log of channel covariance (SPD) + upper-triangle vectorization.
@@ -103,6 +107,7 @@ def features_covlog(epoch: np.ndarray, shrink: float = 0.1) -> np.ndarray:
     return v
 
 
+# converts subject epochs into feature matrix depending on feature_set
 def featurize_subject(X: np.ndarray, feature_set: str) -> np.ndarray:
     """X: (N, 64, 656) -> (N, D)"""
     if feature_set == "bandpower":
@@ -121,6 +126,8 @@ def featurize_subject(X: np.ndarray, feature_set: str) -> np.ndarray:
 # ----------------------------
 # Data loading + caching
 # ----------------------------
+
+# finds all participant IDs that have X_train_*.npy files
 def list_participant_ids(train_dir: str):
     ids = []
     for f in os.listdir(train_dir):
@@ -130,6 +137,7 @@ def list_participant_ids(train_dir: str):
     return sorted(ids, key=lambda s: int(s))
 
 
+# finds all eval/test IDs for X_test_ or X_eval_ files
 def list_eval_ids(eval_dir: str):
     ids = []
     for f in os.listdir(eval_dir):
@@ -139,6 +147,7 @@ def list_eval_ids(eval_dir: str):
     return sorted(ids, key=lambda s: int(s))
 
 
+# loads training data, featurizes it, and optionally caches features per participant
 def load_training(train_dir: str, feature_set: str, cache_dir: str | None):
     X_list, y_list, groups = [], [], []
     ids = list_participant_ids(train_dir)
@@ -187,6 +196,8 @@ def load_training(train_dir: str, feature_set: str, cache_dir: str | None):
 # ----------------------------
 # Training / CV
 # ----------------------------
+
+# builds the XGBoost classifier with fixed params
 def make_model(num_class: int, seed: int, n_estimators: int):
     return XGBClassifier(
         n_estimators=n_estimators,
@@ -203,6 +214,7 @@ def make_model(num_class: int, seed: int, n_estimators: int):
     )
 
 
+# trains with GroupKFold (split by participant so no leakage)
 def train_with_group_cv(X: np.ndarray, y: np.ndarray, groups: np.ndarray, seed: int = 42, n_estimators: int = 800):
     le = LabelEncoder()
     y_enc = le.fit_transform(y)
@@ -273,6 +285,7 @@ def train_with_group_cv(X: np.ndarray, y: np.ndarray, groups: np.ndarray, seed: 
     }
 
 
+# dumps top feature importances to a txt file (mostly for debugging/insight)
 def compute_feature_importance(bundle, feature_set: str):
     """Save top-20 gain importances + explain feature indexing."""
     try:
@@ -315,6 +328,8 @@ def compute_feature_importance(bundle, feature_set: str):
 # ----------------------------
 # Prediction
 # ----------------------------
+
+# runs model(s) on eval/test files and saves y_pred_*.npy outputs
 def predict_eval(bundle, eval_dir: str, out_dir: str, feature_set: str, cache_dir: str | None):
     os.makedirs(out_dir, exist_ok=True)
     le = bundle["label_encoder"]
@@ -370,6 +385,8 @@ def predict_eval(bundle, eval_dir: str, out_dir: str, feature_set: str, cache_di
 # ----------------------------
 # Main
 # ----------------------------
+
+# CLI entry: chooses best feature set by CV, saves model bundle, then writes predictions
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--train_dir", required=True)
