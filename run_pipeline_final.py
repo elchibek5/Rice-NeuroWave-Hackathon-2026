@@ -18,6 +18,8 @@ EPS = 1e-10
 # ----------------------------
 # Feature helpers
 # ----------------------------
+
+# compute power in a frequency band using Welch PSD
 def bandpower(sig: np.ndarray, low: float, high: float, fs: int = FS) -> float:
     """Integrate PSD over [low, high] using Welch."""
     freqs, psd = welch(sig, fs=fs, nperseg=256)
@@ -25,6 +27,7 @@ def bandpower(sig: np.ndarray, low: float, high: float, fs: int = FS) -> float:
     return float(np.trapezoid(psd[mask], freqs[mask])) if np.any(mask) else 0.0
 
 
+# extract per-channel stats + bandpower features (total 896)
 def features_bandpower(epoch: np.ndarray) -> np.ndarray:
     """
     epoch: (64, 656)
@@ -63,6 +66,7 @@ def features_bandpower(epoch: np.ndarray) -> np.ndarray:
     return np.array(feats, dtype=np.float32)
 
 
+# extract log-covariance features (SPD log-map), 2080 dims
 def features_covlog(epoch: np.ndarray, shrink: float = 0.1) -> np.ndarray:
     """
     Strong EEG baseline: log of channel covariance (SPD) + upper-triangle vectorization.
@@ -103,6 +107,7 @@ def features_covlog(epoch: np.ndarray, shrink: float = 0.1) -> np.ndarray:
     return v
 
 
+# featurize a full subject array depending on chosen feature_set
 def featurize_subject(X: np.ndarray, feature_set: str) -> np.ndarray:
     """X: (N, 64, 656) -> (N, D)"""
     if feature_set == "bandpower":
@@ -121,6 +126,8 @@ def featurize_subject(X: np.ndarray, feature_set: str) -> np.ndarray:
 # ----------------------------
 # Data loading + caching
 # ----------------------------
+
+# get training participant ids from filenames like X_train_123.npy
 def list_participant_ids(train_dir: str):
     ids = []
     for f in os.listdir(train_dir):
@@ -130,6 +137,7 @@ def list_participant_ids(train_dir: str):
     return sorted(ids, key=lambda s: int(s))
 
 
+# get eval/test ids from filenames like X_test_123.npy or X_eval_123.npy
 def list_eval_ids(eval_dir: str):
     ids = []
     for f in os.listdir(eval_dir):
@@ -139,6 +147,7 @@ def list_eval_ids(eval_dir: str):
     return sorted(ids, key=lambda s: int(s))
 
 
+# load train data, featurize per participant, and optionally cache computed features
 def load_training(train_dir: str, feature_set: str, cache_dir: str | None):
     X_list, y_list, groups = [], [], []
     ids = list_participant_ids(train_dir)
@@ -187,6 +196,8 @@ def load_training(train_dir: str, feature_set: str, cache_dir: str | None):
 # ----------------------------
 # Training / CV
 # ----------------------------
+
+# create XGBoost model with fixed params (multiclass softprob)
 def make_model(num_class: int, seed: int, n_estimators: int):
     return XGBClassifier(
         n_estimators=n_estimators,
@@ -203,6 +214,7 @@ def make_model(num_class: int, seed: int, n_estimators: int):
     )
 
 
+# run GroupKFold CV (split by participant) + train a final model on full data
 def train_with_group_cv(X: np.ndarray, y: np.ndarray, groups: np.ndarray, seed: int = 42, n_estimators: int = 800):
     le = LabelEncoder()
     y_enc = le.fit_transform(y)
@@ -232,7 +244,7 @@ def train_with_group_cv(X: np.ndarray, y: np.ndarray, groups: np.ndarray, seed: 
         all_true.append(y_enc[te])
         all_pred.append(pred)
 
-        # store model + scaler for ensembling later
+        # store model + scaler so we can ensemble later on eval
         fold_models.append({"model": m, "scaler": scaler})
         print(f"Fold {fold} accuracy: {acc:.4f}")
 
@@ -257,7 +269,7 @@ def train_with_group_cv(X: np.ndarray, y: np.ndarray, groups: np.ndarray, seed: 
     print(cm)
     print("Saved cv_confusion_matrix.txt")
 
-    # Train full model on all data (with scaler)
+    # train a single model on all training data (with one scaler)
     full_scaler = StandardScaler(with_mean=True, with_std=True)
     X_full = full_scaler.fit_transform(X)
     full_model = clone(base)
@@ -273,6 +285,7 @@ def train_with_group_cv(X: np.ndarray, y: np.ndarray, groups: np.ndarray, seed: 
     }
 
 
+# writes top feature importances to a txt file so you can see what matters
 def compute_feature_importance(bundle, feature_set: str):
     """Save top-20 gain importances + explain feature indexing."""
     try:
@@ -315,6 +328,8 @@ def compute_feature_importance(bundle, feature_set: str):
 # ----------------------------
 # Prediction
 # ----------------------------
+
+# generate y_pred_*.npy for each participant in eval/test folder (with fold ensemble)
 def predict_eval(bundle, eval_dir: str, out_dir: str, feature_set: str, cache_dir: str | None):
     os.makedirs(out_dir, exist_ok=True)
     le = bundle["label_encoder"]
@@ -347,7 +362,7 @@ def predict_eval(bundle, eval_dir: str, out_dir: str, feature_set: str, cache_di
             if cache_path:
                 np.savez_compressed(cache_path, X=feats)
 
-        # ensemble over folds (each has its scaler)
+        # average probs from each fold model (simple ensemble)
         probs = None
         for obj in fold_models:
             m = obj["model"]
@@ -358,7 +373,7 @@ def predict_eval(bundle, eval_dir: str, out_dir: str, feature_set: str, cache_di
 
         pred_enc = np.argmax(probs, axis=1)
 
-        # safety fallback
+        # fallback: use the single full model if something weird happens
         if pred_enc.shape[0] != feats.shape[0]:
             pred_enc = np.argmax(full_model.predict_proba(full_scaler.transform(feats)), axis=1)
 
@@ -370,6 +385,8 @@ def predict_eval(bundle, eval_dir: str, out_dir: str, feature_set: str, cache_di
 # ----------------------------
 # Main
 # ----------------------------
+
+# CLI entry point: try feature sets, pick best by CV, save model bundle, then predict eval
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--train_dir", required=True)
