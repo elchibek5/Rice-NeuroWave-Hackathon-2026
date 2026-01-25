@@ -13,12 +13,14 @@ from sklearn.base import clone
 
 FS = 160  # Hz
 
+# calculates signal power in a specific frequency band (Welch PSD)
 def bandpower(sig: np.ndarray, low: float, high: float, fs: int = FS) -> float:
     """Integrate PSD over [low, high] using Welch."""
     freqs, psd = welch(sig, fs=fs, nperseg=256)
     mask = (freqs >= low) & (freqs <= high)
     return float(np.trapezoid(psd[mask], freqs[mask])) if np.any(mask) else 0.0
 
+# extracts 896 features from one EEG epoch (64 channels) using stats + bandpowers
 def extract_features_epoch(epoch: np.ndarray) -> np.ndarray:
     """
     epoch: (64, 656)
@@ -63,10 +65,12 @@ def extract_features_epoch(epoch: np.ndarray) -> np.ndarray:
     return np.array(feats, dtype=np.float32)
 
 
+# converts a whole subject's epochs into a big 2D feature matrix (N epochs x D features)
 def featurize_subject(X: np.ndarray) -> np.ndarray:
     """X: (N, 64, 656) -> (N, D)"""
     return np.vstack([extract_features_epoch(X[i]) for i in range(X.shape[0])])
 
+# gets participant IDs from filenames like X_train_123.npy
 def list_participant_ids(train_dir: str):
     ids = []
     for f in os.listdir(train_dir):
@@ -75,6 +79,7 @@ def list_participant_ids(train_dir: str):
             ids.append(m.group(1))
     return sorted(ids, key=lambda s: int(s))
 
+# loads all training participants, featurizes them, and builds group labels for GroupKFold
 def load_training(train_dir: str):
     X_list, y_list, groups = [], [], []
     ids = list_participant_ids(train_dir)
@@ -104,6 +109,7 @@ def load_training(train_dir: str):
     groups = np.array(groups)
     return X_all, y_all, groups
 
+# trains XGBoost using GroupKFold so subjects don't leak between train/test folds
 def train_with_group_cv(X: np.ndarray, y: np.ndarray, groups: np.ndarray, seed: int = 42):
     le = LabelEncoder()
     y_enc = le.fit_transform(y)
@@ -144,6 +150,7 @@ def train_with_group_cv(X: np.ndarray, y: np.ndarray, groups: np.ndarray, seed: 
 
     return {"fold_models": fold_models, "full_model": full_model, "label_encoder": le}
 
+# finds eval/test IDs from X_test_*.npy or X_eval_*.npy
 def list_eval_ids(eval_dir: str):
     ids = []
     for f in os.listdir(eval_dir):
@@ -152,6 +159,7 @@ def list_eval_ids(eval_dir: str):
             ids.append(m.group(1))
     return sorted(ids, key=lambda s: int(s))
 
+# runs ensemble predictions for each participant in eval folder and saves y_pred_*.npy
 def predict_eval(bundle, eval_dir: str, out_dir: str):
     os.makedirs(out_dir, exist_ok=True)
     le = bundle["label_encoder"]
@@ -186,6 +194,7 @@ def predict_eval(bundle, eval_dir: str, out_dir: str):
         print(f"Saved y_pred_{pid}.npy with shape {pred_labels.shape}")
 
 
+# CLI entry: loads data, trains model, saves bundle, then writes predictions to out_dir
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--train_dir", required=True)
