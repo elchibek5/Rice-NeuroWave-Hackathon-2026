@@ -5,7 +5,7 @@ This project trains a model on EEG epochs and generates `.npy` prediction files 
 ## PaperPilot-Gemini (Companion Tool)
 PaperPilot is a research copilot that summarizes PDF papers, extracts claims/method/results, generates a replication plan, and supports Q&A with citations.
 
-Repo: [https://github.com/<elchibek5>/<PaperPilot-Gemini>]
+Repo: [https://github.com/elchibek5/PaperPilot-Gemini]
 
 ---
 
