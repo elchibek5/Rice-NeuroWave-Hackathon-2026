@@ -2,6 +2,7 @@ import argparse
 import os
 import shutil
 
+# merges multiple training folders into one output folder, without overwriting duplicates
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out_train_dir", required=True, help="Output Training directory (will be created)")
